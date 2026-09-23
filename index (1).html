@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Entrelazamiento Cuántico — Simulador</title>
+<style>
+  :root{
+    --bg: #0a0e14;
+    --panel: #10151f;
+    --line: #232b3a;
+    --ink: #e8ecf3;
+    --ink-dim: #8b93a7;
+    --quantum: #6f8cff;
+    --quantum-glow: rgba(111,140,255,0.35);
+    --up: #4fd6a8;
+    --down: #ff6b6b;
+    --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{ box-sizing: border-box; }
+  html{ scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html, body{ background: var(--bg); color: var(--ink); margin:0; font-family: var(--font-serif); }
+  body{ min-height:100%; display:flex; flex-direction:column; align-items:center; padding: 48px 20px 80px; }
+
+  .wrap{ width:100%; max-width: 760px; }
+
+  header{ text-align:center; margin-bottom: 36px; }
+  .kicker{ font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--quantum); margin: 0 0 10px; }
+  h1{ font-size: clamp(26px, 5vw, 38px); font-weight: 500; margin: 0 0 12px; line-height: 1.15; }
+  .sub{ color: var(--ink-dim); font-size: 16px; max-width: 52ch; margin: 0 auto; line-height: 1.55; }
+
+  .stage{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 20px 20px 8px;
+    margin: 32px 0 20px;
+  }
+
+  .distance-row{
+    display:flex;
+    align-items:center;
+    gap: 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-dim);
+    padding: 0 4px 16px;
+  }
+  .distance-row input[type=range]{
+    flex:1;
+    -webkit-appearance:none; appearance:none;
+    height:2px; background: var(--line); border-radius:2px; outline:none;
+  }
+  .distance-row input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:14px; height:14px; border-radius:50%;
+    background: var(--quantum); cursor:pointer;
+    box-shadow: 0 0 0 4px var(--quantum-glow);
+  }
+  .distance-row input[type=range]::-moz-range-thumb{
+    width:14px; height:14px; border:none; border-radius:50%;
+    background: var(--quantum); cursor:pointer;
+    box-shadow: 0 0 0 4px var(--quantum-glow);
+  }
+  .distance-value{ min-width: 92px; text-align:right; color: var(--ink); }
+
+  .particles-row{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 220px;
+  }
+
+  .link-line{
+    flex:1;
+    height: 1px;
+    background: repeating-linear-gradient(90deg, var(--quantum) 0 6px, transparent 6px 14px);
+    position: relative;
+    opacity: 0.6;
+    transition: opacity 0.4s ease;
+  }
+  .link-line.collapsed{ opacity: 0.15; }
+
+  .particle-block{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 14px;
+    width: 150px;
+    flex-shrink:0;
+  }
+  .particle-name{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-dim);
+    letter-spacing: 0.05em;
+  }
+  .particle-orb{
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 700;
+    background: radial-gradient(circle at 35% 30%, rgba(111,140,255,0.5), rgba(111,140,255,0.08));
+    border: 1.5px solid var(--quantum);
+    color: var(--ink-dim);
+    transition: background 0.5s ease, border-color 0.5s ease, color 0.5s ease, transform 0.4s ease;
+  }
+  .particle-orb.spin{ animation: spin 2.4s linear infinite; }
+  @keyframes spin{
+    0%{ transform: rotate(0deg) scale(1); }
+    50%{ transform: rotate(180deg) scale(1.05); }
+    100%{ transform: rotate(360deg) scale(1); }
+  }
+  .particle-orb.up{
+    background: radial-gradient(circle at 35% 30%, rgba(79,214,168,0.55), rgba(79,214,168,0.1));
+    border-color: var(--up);
+    color: var(--up);
+    animation: none;
+    transform: none;
+  }
+  .particle-orb.down{
+    background: radial-gradient(circle at 35% 30%, rgba(255,107,107,0.55), rgba(255,107,107,0.1));
+    border-color: var(--down);
+    color: var(--down);
+    animation: none;
+    transform: none;
+  }
+  .particle-state{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-dim);
+    min-height: 16px;
+  }
+  .particle-state.up{ color: var(--up); }
+  .particle-state.down{ color: var(--down); }
+
+  .controls{
+    display:flex;
+    flex-direction:column;
+    gap: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 22px 24px;
+  }
+  .btn-row{ display:flex; gap: 12px; flex-wrap: wrap; }
+  button.action{
+    font-family: var(--font-serif);
+    font-size: 15px;
+    border-radius: 4px;
+    padding: 13px 22px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    cursor:pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+    flex: 1;
+    min-width: 160px;
+  }
+  button.action:hover:not(:disabled){ border-color: var(--quantum); }
+  button.action:disabled{ opacity: 0.35; cursor: default; }
+  .btn-primary{ background: var(--quantum); border-color: var(--quantum); color: #0a0e14; font-weight: 600; }
+  .btn-primary:hover:not(:disabled){ background: #85a0ff; border-color:#85a0ff; }
+
+  .explain{
+    border-left: 3px solid var(--quantum);
+    padding: 4px 0 4px 16px;
+    transition: border-left-color 0.3s ease;
+  }
+  .explain.mode-up{ border-left-color: var(--up); }
+  .explain.mode-down{ border-left-color: var(--down); }
+  .explain-tag{ font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--ink-dim); margin: 0 0 6px; }
+  .explain-text{ font-size: 15px; line-height: 1.6; margin: 0; }
+
+  .log{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-dim);
+    line-height: 1.7;
+    max-height: 80px;
+    overflow-y:auto;
+    padding-top: 4px;
+    border-top: 1px solid var(--line);
+  }
+  .log span{ display:block; }
+  .log .r-up{ color: var(--up); }
+  .log .r-down{ color: var(--down); }
+
+  footer{ margin-top: 40px; max-width: 580px; color: var(--ink-dim); font-size: 14px; line-height: 1.7; text-align:center; }
+  footer strong{ color: var(--ink); font-weight: 500; }
+
+  @media (prefers-reduced-motion: reduce){ .particle-orb.spin{ animation: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <p class="kicker">EXPERIMENTO MENTAL · MECÁNICA CUÁNTICA</p>
+    <h1>Entrelazamiento cuántico</h1>
+    <p class="sub">Dos partículas se crean juntas y quedan entrelazadas: aunque las separes, siguen conectadas. Al medir una, la otra "elige" su estado en el mismo instante — sin importar la distancia.</p>
+  </header>
+
+  <div class="stage">
+    <div class="distance-row">
+      <span>distancia entre partículas</span>
+      <input type="range" id="distSlider" min="0" max="100" value="20">
+      <span class="distance-value" id="distValue">unos metros</span>
+    </div>
+    <div class="particles-row">
+      <div class="particle-block">
+        <p class="particle-name">partícula A</p>
+        <div class="particle-orb spin" id="orbA">?</div>
+        <p class="particle-state" id="stateA">sin medir</p>
+      </div>
+      <div class="link-line" id="linkLine"></div>
+      <div class="particle-block">
+        <p class="particle-name">partícula B</p>
+        <div class="particle-orb spin" id="orbB">?</div>
+        <p class="particle-state" id="stateB">sin medir</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="btn-row">
+      <button class="action btn-primary" id="measureBtn">Medir partícula A</button>
+      <button class="action" id="resetBtn">Crear nuevo par entrelazado</button>
+    </div>
+
+    <div class="explain" id="explainBox">
+      <p class="explain-tag" id="explainTag">explicación</p>
+      <p class="explain-text" id="explainText">Las dos partículas están entrelazadas y en superposición: ninguna tiene un valor definido todavía. Mide la partícula A para ver qué pasa con B.</p>
+    </div>
+
+    <div class="log" id="log">
+      <span>Sin mediciones todavía…</span>
+    </div>
+  </div>
+
+  <footer>
+    <strong>¿Por qué le molestaba esto a Einstein?</strong> Llamó a este fenómeno "acción fantasmal a distancia" porque parecía violar el sentido común: ¿cómo puede el resultado en B depender del resultado en A si están separadas y no hay tiempo para que viaje una señal entre ellas? Décadas de experimentos han confirmado que el entrelazamiento es real, aunque no permite enviar información más rápido que la luz — solo correlaciona resultados que, por separado, siguen siendo aleatorios.
+  </footer>
+</div>
+
+<script>
+(function(){
+  const orbA = document.getElementById('orbA');
+  const orbB = document.getElementById('orbB');
+  const stateA = document.getElementById('stateA');
+  const stateB = document.getElementById('stateB');
+  const linkLine = document.getElementById('linkLine');
+  const measureBtn = document.getElementById('measureBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const explainTag = document.getElementById('explainTag');
+  const explainText = document.getElementById('explainText');
+  const explainBox = document.getElementById('explainBox');
+  const log = document.getElementById('log');
+  const distSlider = document.getElementById('distSlider');
+  const distValue = document.getElementById('distValue');
+
+  let trial = 0;
+  let measured = false;
+
+  function distanceLabel(v){
+    if(v < 15) return 'unos metros';
+    if(v < 35) return 'unos kilómetros';
+    if(v < 55) return 'de un continente a otro';
+    if(v < 80) return 'Tierra – Luna';
+    return 'Tierra – Marte';
+  }
+  distSlider.addEventListener('input', () => {
+    distValue.textContent = distanceLabel(parseInt(distSlider.value,10));
+  });
+  distValue.textContent = distanceLabel(parseInt(distSlider.value,10));
+
+  function setExplain(tag, text, mode){
+    explainTag.textContent = tag;
+    explainText.textContent = text;
+    explainBox.classList.remove('mode-up','mode-down');
+    if(mode) explainBox.classList.add(mode);
+  }
+
+  function measure(){
+    if(measured) return;
+    measured = true;
+
+    const resultA = Math.random() < 0.5 ? 'up' : 'down';
+    const resultB = resultA === 'up' ? 'down' : 'up';
+
+    orbA.classList.remove('spin');
+    orbB.classList.remove('spin');
+    orbA.classList.add(resultA);
+    orbB.classList.add(resultB);
+    orbA.textContent = resultA === 'up' ? '↑' : '↓';
+    orbB.textContent = resultB === 'up' ? '↑' : '↓';
+
+    stateA.textContent = resultA === 'up' ? 'espín arriba' : 'espín abajo';
+    stateA.className = 'particle-state ' + resultA;
+    stateB.textContent = resultB === 'up' ? 'espín arriba' : 'espín abajo';
+    stateB.className = 'particle-state ' + resultB;
+
+    linkLine.classList.add('collapsed');
+
+    const dist = distanceLabel(parseInt(distSlider.value,10));
+    setExplain(
+      'resultado',
+      `Al medir A salió "${resultA === 'up' ? 'arriba' : 'abajo'}", y en el mismo instante B quedó fijada en "${resultB === 'up' ? 'arriba' : 'abajo'}" — aunque estén separadas ${dist}. El resultado individual de A fue al azar, pero el de B quedó perfectamente correlacionado con él.`,
+      resultA
+    );
+
+    trial++;
+    const entry = document.createElement('span');
+    entry.className = resultA === 'up' ? 'r-up' : 'r-down';
+    entry.textContent = `Par ${trial} · A = ${resultA === 'up' ? '↑' : '↓'} · B = ${resultB === 'up' ? '↑' : '↓'} (opuestos)`;
+    if(log.firstChild && log.firstChild.textContent === 'Sin mediciones todavía…'){
+      log.innerHTML = '';
+    }
+    log.prepend(entry);
+
+    measureBtn.disabled = true;
+  }
+
+  function reset(){
+    measured = false;
+    orbA.className = 'particle-orb spin';
+    orbB.className = 'particle-orb spin';
+    orbA.textContent = '?';
+    orbB.textContent = '?';
+    stateA.textContent = 'sin medir';
+    stateA.className = 'particle-state';
+    stateB.textContent = 'sin medir';
+    stateB.className = 'particle-state';
+    linkLine.classList.remove('collapsed');
+    measureBtn.disabled = false;
+    setExplain('explicación', 'Las dos partículas están entrelazadas y en superposición: ninguna tiene un valor definido todavía. Mide la partícula A para ver qué pasa con B.');
+  }
+
+  measureBtn.addEventListener('click', measure);
+  resetBtn.addEventListener('click', reset);
+})();
+</script>
+
+</body>
+</html>
